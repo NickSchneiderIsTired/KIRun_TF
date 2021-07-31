@@ -75,11 +75,12 @@ def create_samples(path):
 
 
 def classify_groundtruth(answer_set):
+    # wealth = answer_set[0]
     burden = answer_set[1]
-    return [0, 1] if burden > 12 else [1, 0]
+    return np.array([burden > 11], dtype="float32")
 
 
-def create_val_data(smile, path):
+def create_data(smile, path):
     samples = create_samples(path)
     x_val = []
     y_val = []
@@ -87,9 +88,7 @@ def create_val_data(smile, path):
         filename = sample[0]
         answer_set = sample[1:4].astype(int)
         start_stamp = answer_set[-2]  # Start
-        end_stamp = answer_set[-1]  # Stop
-        start = random.randint(start_stamp, end_stamp - 5)
-        features = read_chunk(smile, filename, start, 5)
+        features = read_chunk(smile, filename, start_stamp, 5)
         classification = classify_groundtruth(answer_set)
         x_val.append(features)
         y_val.append(classification)

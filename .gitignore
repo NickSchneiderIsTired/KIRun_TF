@@ -1,0 +1,6 @@
+data/*
+newData/*
+trainedModel/*
+venv/*
+.idea/*
+__pycache__/*

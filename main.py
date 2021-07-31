@@ -1,8 +1,7 @@
 import opensmile
-from pipline import Pipeline
 import tensorflow as tf
 from model import Network
-from utils import create_val_data
+from utils import create_data
 
 physical_devices = tf.config.list_physical_devices('GPU')
 if len(physical_devices) > 0:
@@ -16,46 +15,17 @@ def main():
         feature_level=opensmile.FeatureLevel.Functionals,
         num_channels=2
     )
-    batch_size = 4
-    dataset = Pipeline(smile,
-                       "data/train/",
-                       batch_size=batch_size,
-                       num_parallel_calls=1)
 
     print("Creating training data")
-    features, classification = create_val_data(smile, "data/train/")
+    features, classification = create_data(smile, "newData/train/")
     print("Creating validation data")
-    val_x, val_y = create_val_data(smile, "data/val/")
+    val_x, val_y = create_data(smile, "newData/val/")
     print("Data created")
 
     opt = tf.keras.optimizers.Adam(learning_rate=0.00001)
     net = Network()
     counter = 0
-    '''
-        for (filename, classification, features) in dataset():
-            features = tf.reshape(features, (batch_size, 176))
-            with tf.GradientTape() as tape:
-                # noinspection PyCallingNonCallable
-                res = net(features)
-                # regularization = tf.add_n(net.losses)
-                loss = tf.nn.softmax_cross_entropy_with_logits(classification, res)
-                mean_loss = tf.reduce_mean(loss)
-
-                if counter % 10 == 0:
-                    correctly_classified_count = 0
-                    print(mean_loss.numpy())
-                    # noinspection PyCallingNonCallable
-                    res = net(val_x)  # Calculate result of NN
-                    for i in range(len(res)):
-                        if tf.math.argmax(res[i]) == tf.math.argmax(val_y[i]):
-                            correctly_classified_count += 1
-                    accuracy = correctly_classified_count / len(res)
-                    print("\nMODEL Accuracy: ", accuracy)
-
-            grads = tape.gradient(mean_loss, net.trainable_weights)
-            opt.apply_gradients(zip(grads, net.trainable_weights))
-            counter += 1
-        '''
+    bestAccuracy = 0.0
     while True:
         indices = tf.range(start=0, limit=tf.shape(features)[0], dtype=tf.int32)
         shuffled_indices = tf.random.shuffle(indices)
@@ -65,22 +35,28 @@ def main():
         with tf.GradientTape() as tape:
             # noinspection PyCallingNonCallable
             res = net(shuffled_features)
-            # regularization = tf.add_n(net.losses)
-            loss = tf.nn.softmax_cross_entropy_with_logits(shuffled_classification, res)
-            mean_loss = tf.reduce_mean(loss)
+            loss = tf.nn.sigmoid_cross_entropy_with_logits(shuffled_classification, res)
+            regularization = tf.add_n(net.losses)
+            mean_loss = tf.reduce_mean(loss + regularization)
 
             if counter % 100 == 0:
-                correctly_classified_count = 0
+                print("Train loss: ", mean_loss.numpy())
                 # noinspection PyCallingNonCallable
-                res = net(val_x)  # Calculate result of NN
-                for i in range(len(res)):
-                    if tf.math.argmax(res[i]) == tf.math.argmax(val_y[i]):
-                        correctly_classified_count += 1
-                accuracy = correctly_classified_count / len(res)
-                print("MODEL Accuracy: ", accuracy, '\n')
-            if counter % 1000 == 0:
-                print("Saving model")
-                #  net.save('./trainedModel')
+                val_res = net(val_x)
+                val_loss = tf.nn.sigmoid_cross_entropy_with_logits(val_y, val_res)
+                val_mean_loss = tf.reduce_mean(val_loss + tf.add_n(net.losses))
+                print("Val loss: ", val_mean_loss.numpy())
+                val_res = tf.math.sigmoid(val_res)  # Calculate result of NN
+                val_loss = tf.math.abs(tf.cast(val_res > 0.5, dtype=tf.float32) - val_y)
+                accuracy = 1 - tf.reduce_sum(val_loss) / tf.size(val_loss, out_type=tf.dtypes.float32)
+                print("Model accuracy: ", accuracy.numpy(), '\n')
+                if accuracy > bestAccuracy:
+                    bestAccuracy = accuracy
+                    print("Saving model")
+                    confusion_matrix = tf.math.confusion_matrix(tf.reshape(val_y, 23), tf.cast(tf.reshape(val_res, 23) > 0.5, dtype=tf.float32))
+                    print(confusion_matrix.numpy())
+                    # net.save('./trainedModel')
+                    return 0
 
         grads = tape.gradient(mean_loss, net.trainable_weights)
         opt.apply_gradients(zip(grads, net.trainable_weights))
