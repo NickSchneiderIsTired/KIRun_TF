@@ -17,9 +17,9 @@ def main():
     )
 
     print("Creating training data")
-    features, classification = create_data(smile, "newData/train/")
+    features, classification = create_data(smile, "data/train/")
     print("Creating validation data")
-    val_x, val_y = create_data(smile, "newData/val/")
+    val_x, val_y = create_data(smile, "data/val/")
     print("Data created")
 
     opt = tf.keras.optimizers.Adam(learning_rate=0.00001)
@@ -56,7 +56,8 @@ def main():
                     confusion_matrix = tf.math.confusion_matrix(tf.reshape(val_y, 23), tf.cast(tf.reshape(val_res, 23) > 0.5, dtype=tf.float32))
                     print(confusion_matrix.numpy())
                     # net.save('./trainedModel')
-                    return 0
+                    if accuracy == 1.0:
+                        return 0
 
         grads = tape.gradient(mean_loss, net.trainable_weights)
         opt.apply_gradients(zip(grads, net.trainable_weights))
